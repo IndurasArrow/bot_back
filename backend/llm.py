@@ -1,21 +1,30 @@
 import os
-from openai import OpenAI
+import google.generativeai as genai
 from dotenv import load_dotenv
 
 from prompts import SYSTEM_PROMPT
 
 load_dotenv(override=True)
 
-client = OpenAI()
-MODEL = "qwen/qwen3-next-80b-a3b-instruct"
+# Configure Gemini
+# Ensure you have GOOGLE_API_KEY in your .env file
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-def chat_llm(message: str) -> str:
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": message},
-        ],
-        temperature=0.7,
+MODEL = "gemini-2.0-flash" 
+
+def chat_llm(message: str, json_mode: bool = False) -> str:
+    generation_config = {}
+    if json_mode:
+        generation_config["response_mime_type"] = "application/json"
+
+    model = genai.GenerativeModel(
+        model_name=MODEL,
+        system_instruction=SYSTEM_PROMPT,
+        generation_config=generation_config
     )
-    return response.choices[0].message.content
+    
+    try:
+        response = model.generate_content(message)
+        return response.text
+    except Exception as e:
+        return f"Error communicating with Gemini: {str(e)}"

@@ -50,7 +50,7 @@ def chat(request: ChatRequest):
     - suggestions (array of strings)
     """
 
-    result = chat_llm(prompt)
+    result = chat_llm(prompt, json_mode=True)
 
     parsed = json.loads(result)
     print("suggestions: ", parsed["suggestions"])

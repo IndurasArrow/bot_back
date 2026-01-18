@@ -1,6 +1,6 @@
 fastapi
 pydantic
 python-dotenv
-openai
+google-generativeai
 pandas
 uvicorn
