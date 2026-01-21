@@ -4,9 +4,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from backend.data import inventory_df
-from backend.utils import df_to_context
-from backend.llm import chat_llm
+from .data import inventory_df
+from .utils import df_to_context
+from .llm import chat_llm
 
 from fastapi.middleware.cors import CORSMiddleware
 import json

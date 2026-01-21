@@ -2,7 +2,7 @@ import os
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-from backend.prompts import SYSTEM_PROMPT
+from .prompts import SYSTEM_PROMPT
 
 load_dotenv(override=True)
 
