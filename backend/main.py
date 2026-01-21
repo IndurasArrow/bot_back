@@ -4,17 +4,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from data import inventory_df, warehouse_df
-from report_service import get_out_of_stock_price_report
-from utils import df_to_context
-from llm import chat_llm
+from .data import inventory_df
+from .utils import df_to_context
+from .llm import chat_llm
 
 from fastapi.middleware.cors import CORSMiddleware
 import json
 
 app = FastAPI(
     title="PVR Chat Assistant",
-    description="Query your inventory and warehouse data",
+    description="Query your procurement data",
     version="1.0.0",
 )
 
@@ -31,50 +30,52 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 def chat(request: ChatRequest):
-    print("Inside the chat endpoint")
+    print(f"User Message: {request.message}")
     
-    inventory_context = df_to_context(inventory_df, "Inventory Data")
-    warehouse_context = df_to_context(warehouse_df, "Warehouse Data")
+    inventory_context = df_to_context(inventory_df, "Procurement/Maintenance Data")
 
     prompt = f"""
+    Context Data:
     {inventory_context}
-
-    {warehouse_context}
 
     User Question: {request.message}
 
-    Answer the question first.
-    Then suggest 3 short follow-up questions the user might ask next.
-    Return the result as JSON with keys:
-    - answer
-    - suggestions (array of strings)
+    Instructions:
+    1. Answer based ONLY on the provided Context Data.
+    2. If the user asks for a list, category, or item details, respond with a Markdown table.
+    3. The table MUST include these columns: S/NO, ITEM DESCRIPTION, CATEGORY, LEAD TIME (DAYS), REMARKS, CREATED BY.
+    4. IMPORTANT: If there are more than 20 items matching the request, show the first 20 and add a note that more items are available.
+    5. CRITICAL: You MUST provide exactly 3 follow-up suggestions in the "suggestions" array. These should be questions the user might ask next (e.g., specific item details, other categories, or lead times).
+
+    Return the result as a VALID JSON object with this structure:
+    {{
+        "answer": "Your text and markdown table here",
+        "suggestions": ["Follow-up Q1", "Follow-up Q2", "Follow-up Q3"]
+    }}
     """
 
-    result = chat_llm(prompt, json_mode=True)
+    raw_result = chat_llm(prompt, json_mode=True)
+    
+    # Robust JSON extraction
+    clean_result = raw_result.strip()
+    if clean_result.startswith("```json"):
+        clean_result = clean_result.replace("```json", "", 1).rsplit("```", 1)[0].strip()
+    elif clean_result.startswith("```"):
+        clean_result = clean_result.replace("```", "", 1).rsplit("```", 1)[0].strip()
 
-    parsed = json.loads(result)
-    print("suggestions: ", parsed["suggestions"])
-    return {
-        "answer": parsed["answer"],
-        "suggestions": parsed["suggestions"]
-    }
-
-
-@app.post("/generate-price-report")
-def generate_price_report():
-    report_context = get_out_of_stock_price_report()
-
-    prompt = f"""
-    You are a procurement assistant for PVR Cinemas.
-
-    Based ONLY on the following report data,
-    generate a report
-
-    Report Data:
-    {report_context}
-    """
-
-    result = chat_llm(prompt)
-    return {
-        "answer": result
-    }
+    try:
+        parsed = json.loads(clean_result)
+        suggestions = parsed.get("suggestions", [])
+        print(f"Generated Suggestions: {suggestions}") # Debug log
+        
+        return {
+            "answer": parsed.get("answer", "No answer provided."),
+            "suggestions": suggestions
+        }
+    except json.JSONDecodeError as e:
+        print(f"JSON Error: {e}")
+        print(f"Raw Result: {raw_result}")
+        return {
+            "answer": "I processed the data but had trouble formatting the final response. Please try asking for a specific item or a smaller category.",
+            "suggestions": ["Show items in R & M", "Search for 'Ventilation'", "What is the lead time for item 1?"]
+        }
