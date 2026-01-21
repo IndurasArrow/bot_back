@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 try:
     from backend.prompts import SYSTEM_PROMPT
 except ImportError:
-    from .prompts import SYSTEM_PROMPT
+    from prompts import SYSTEM_PROMPT
     
 
 
