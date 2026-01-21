@@ -65,7 +65,17 @@ def chat(request: ChatRequest):
     6. At the end of the response (after the table or note), include a summary in this exact format:
        ✅ Total rows: [total count of matching items]
        ✅ Columns: 6
-    7. CRITICAL: You MUST provide exactly 3 follow-up suggestions.
+    7. CRITICAL: You MUST provide exactly 3 follow-up suggestions in the "suggestions" array.
+
+    SUGGESTION LOGIC:
+    - Suggestions MUST be specific, actionable queries based on the data.
+    - Suggestions MUST be short (under 6 words).
+    - GOOD: "Show items in R & M", "Lead time for Ventilation", "List all categories"
+    - BAD: "Would you like to know...", "Can I help you with...", "Do you want to see..."
+    - VARY the suggestions: 
+        1. One about a related category or listing all categories.
+        2. One about a specific item mentioned or related.
+        3. One about filtering by a column (e.g., Lead time, Created by).
 
     Output Format:
     You must format your entire response strictly as follows:
@@ -108,6 +118,12 @@ def generate_report(request: ReportRequest):
     3. Present the data in a Markdown table with columns: S/NO, ITEM DESCRIPTION, CATEGORY, LEAD TIME (DAYS).
     4. If no specific items were discussed, show a general summary of items with short lead times (e.g., 7 days).
     5. IMPORTANT: Ensure there are TWO blank lines before the table starts.
+    
+    SUGGESTION LOGIC:
+    - Suggestions MUST be specific, actionable queries for the next steps.
+    - Suggestions MUST be short (under 6 words).
+    - GOOD: "Analyze cost for these", "List all categories", "Compare lead times"
+    - BAD: "Would you like to...", "Do you want information about..."
 
     Output Format:
     You must format your entire response strictly as follows:
