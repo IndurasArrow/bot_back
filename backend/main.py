@@ -1,6 +1,12 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from dotenv import load_dotenv
+import sys
+import os
+
+# Add the parent directory to sys.path to allow imports from 'backend' if running from root,
+# or ensure current dir is in path if running from inside backend.
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 load_dotenv()
 
@@ -9,6 +15,7 @@ try:
     from backend.utils import df_to_context
     from backend.llm import chat_llm
 except ImportError:
+    # Fallback for when running directly inside the backend folder
     from data import inventory_df
     from utils import df_to_context
     from llm import chat_llm
