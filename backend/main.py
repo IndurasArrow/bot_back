@@ -4,9 +4,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from .data import inventory_df
-from .utils import df_to_context
-from .llm import chat_llm
+from backend.data import inventory_df
+from backend.utils import df_to_context
+from backend.llm import chat_llm
 # Force deployment update
 
 from fastapi.middleware.cors import CORSMiddleware
