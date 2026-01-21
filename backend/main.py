@@ -4,12 +4,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from .data import inventory_df
-from .utils import df_to_context
-from .llm import chat_llm
+from backend.data import inventory_df
+from backend.utils import df_to_context
+from backend.llm import chat_llm
 
 from fastapi.middleware.cors import CORSMiddleware
 import json
+import re
 
 app = FastAPI(
     title="PVR Chat Assistant",
@@ -28,6 +29,9 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     message: str   
 
+class ReportRequest(BaseModel):
+    chat_history: list[str]
+
 @app.post("/chat")
 def chat(request: ChatRequest):
     print(f"User Message: {request.message}")
@@ -43,39 +47,104 @@ def chat(request: ChatRequest):
     Instructions:
     1. Answer based ONLY on the provided Context Data.
     2. If the user asks for a list, category, or item details, respond with a Markdown table.
-    3. The table MUST include these columns: S/NO, ITEM DESCRIPTION, CATEGORY, LEAD TIME (DAYS), REMARKS, CREATED BY.
-    4. IMPORTANT: If there are more than 20 items matching the request, show the first 20 and add a note that more items are available.
-    5. CRITICAL: You MUST provide exactly 3 follow-up suggestions in the "suggestions" array. These should be questions the user might ask next (e.g., specific item details, other categories, or lead times).
+    3. IMPORTANT: Ensure there are TWO blank lines before the table starts.
+    4. The table MUST include these columns: S/NO, ITEM DESCRIPTION, CATEGORY, LEAD TIME (DAYS), REMARKS, CREATED BY.
+    5. IMPORTANT: If there are more than 20 items matching the request, show only the first 20.
+    6. At the end of the response (after the table or note), include a summary in this exact format:
+       ✅ Total rows: [total count of matching items]
+       ✅ Columns: 6
+    7. CRITICAL: You MUST provide exactly 3 follow-up suggestions.
 
-    Return the result as a VALID JSON object with this structure:
-    {{
-        "answer": "Your text and markdown table here",
-        "suggestions": ["Follow-up Q1", "Follow-up Q2", "Follow-up Q3"]
-    }}
+    Output Format:
+    You must format your entire response strictly as follows:
+
+    <<<ANSWER>>>
+    [Put your full answer here, including any text and the markdown table]
+    <<</ANSWER>>>
+
+    <<<SUGGESTIONS>>>
+    [Suggestion 1]
+    [Suggestion 2]
+    [Suggestion 3]
+    <<</SUGGESTIONS>>>
     """
 
-    raw_result = chat_llm(prompt, json_mode=True)
+    # Disable JSON mode to avoid escaping issues with complex markdown tables
+    raw_result = chat_llm(prompt, json_mode=False)
     
-    # Robust JSON extraction
-    clean_result = raw_result.strip()
-    if clean_result.startswith("```json"):
-        clean_result = clean_result.replace("```json", "", 1).rsplit("```", 1)[0].strip()
-    elif clean_result.startswith("```"):
-        clean_result = clean_result.replace("```", "", 1).rsplit("```", 1)[0].strip()
+    # Parse the delimited response
+    return parse_llm_response(raw_result)
+
+@app.post("/generate-report")
+def generate_report(request: ReportRequest):
+    print(f"Generating report for history: {request.chat_history}")
+    
+    inventory_context = df_to_context(inventory_df, "Procurement/Maintenance Data")
+    
+    history_text = "\n".join([f"User: {msg}" for msg in request.chat_history])
+
+    prompt = f"""
+    Context Data:
+    {inventory_context}
+
+    Chat History:
+    {history_text}
+
+    Instructions:
+    1. Analyze the Chat History to identify all specific items or categories the user asked about.
+    2. Create a summary report specifically focusing on the LEAD TIME for these items.
+    3. Present the data in a Markdown table with columns: S/NO, ITEM DESCRIPTION, CATEGORY, LEAD TIME (DAYS).
+    4. If no specific items were discussed, show a general summary of items with short lead times (e.g., 7 days).
+    5. IMPORTANT: Ensure there are TWO blank lines before the table starts.
+
+    Output Format:
+    You must format your entire response strictly as follows:
+
+    <<<ANSWER>>>
+    Here is the Lead Time Report based on your session:
+
+    [Markdown Table]
+    <<</ANSWER>>>
+
+    <<<SUGGESTIONS>>>
+    [Suggestion 1]
+    [Suggestion 2]
+    [Suggestion 3]
+    <<</SUGGESTIONS>>>
+    """
+
+    raw_result = chat_llm(prompt, json_mode=False)
+    return parse_llm_response(raw_result)
+
+def parse_llm_response(raw_result: str):
+    answer = "I processed the data but had trouble formatting the final response."
+    suggestions = ["Show items in R & M", "Search for 'Ventilation'", "What is the lead time for item 1?"]
 
     try:
-        parsed = json.loads(clean_result)
-        suggestions = parsed.get("suggestions", [])
-        print(f"Generated Suggestions: {suggestions}") # Debug log
+        # Extract Answer
+        answer_match = re.search(r"<<<ANSWER>>>(.*?)<<</ANSWER>>>", raw_result, re.DOTALL)
+        if answer_match:
+            answer = answer_match.group(1).strip()
+        else:
+            print("Warning: No <<<ANSWER>>> tags found. Using raw result.")
+            answer = raw_result
+
+        # Extract Suggestions
+        suggestions_match = re.search(r"<<<SUGGESTIONS>>>(.*?)<<</SUGGESTIONS>>>", raw_result, re.DOTALL)
+        if suggestions_match:
+            suggestions_text = suggestions_match.group(1).strip()
+            suggestions_list = [s.strip() for s in suggestions_text.split('\n') if s.strip()]
+            if suggestions_list:
+                suggestions = suggestions_list[:3]
         
         return {
-            "answer": parsed.get("answer", "No answer provided."),
+            "answer": answer,
             "suggestions": suggestions
         }
-    except json.JSONDecodeError as e:
-        print(f"JSON Error: {e}")
-        print(f"Raw Result: {raw_result}")
+
+    except Exception as e:
+        print(f"Parsing Error: {e}")
         return {
-            "answer": "I processed the data but had trouble formatting the final response. Please try asking for a specific item or a smaller category.",
-            "suggestions": ["Show items in R & M", "Search for 'Ventilation'", "What is the lead time for item 1?"]
+            "answer": "I processed the data but had trouble formatting the final response.",
+            "suggestions": suggestions
         }
