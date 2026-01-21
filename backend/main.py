@@ -7,6 +7,7 @@ load_dotenv()
 from .data import inventory_df
 from .utils import df_to_context
 from .llm import chat_llm
+# Force deployment update
 
 from fastapi.middleware.cors import CORSMiddleware
 import json
