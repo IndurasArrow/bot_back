@@ -145,8 +145,9 @@ def generate_report(request: ReportRequest):
     return parse_llm_response(raw_result)
 
 def parse_llm_response(raw_result: str):
-    answer = "I processed the data but had trouble formatting the final response."
-    suggestions = ["Show items in R & M", "Search for 'Ventilation'", "What is the lead time for item 1?"]
+    # Default suggestions if none found
+    default_suggestions = ["Show items in R & M", "Search for 'Ventilation'", "What is the lead time for item 1?"]
+    suggestions = default_suggestions
 
     try:
         # Extract Answer
@@ -154,7 +155,7 @@ def parse_llm_response(raw_result: str):
         if answer_match:
             answer = answer_match.group(1).strip()
         else:
-            print("Warning: No <<<ANSWER>>> tags found. Using raw result.")
+            # Silently fall back to raw result if tags are missing
             answer = raw_result
 
         # Extract Suggestions
@@ -172,7 +173,8 @@ def parse_llm_response(raw_result: str):
 
     except Exception as e:
         print(f"Parsing Error: {e}")
+        # Fallback to returning the raw result so the user still sees the content
         return {
-            "answer": "I processed the data but had trouble formatting the final response.",
-            "suggestions": suggestions
+            "answer": raw_result,
+            "suggestions": default_suggestions
         }
