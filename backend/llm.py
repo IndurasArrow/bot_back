@@ -17,7 +17,7 @@ load_dotenv(override=True)
 # Ensure you have GOOGLE_API_KEY in your .env file
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-MODEL = "gemini-2.0-flash-lite-preview-02-05" 
+MODEL = "gemini-2.5-flash-lite"
 
 def chat_llm(message: str, json_mode: bool = False) -> str:
     generation_config = {}
