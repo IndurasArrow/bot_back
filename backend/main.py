@@ -126,9 +126,13 @@ def chat(request: ChatRequest):
     2. Answer based ONLY on the provided Context Data.
     3. If the user asks for a list, category, or item details, respond with a Markdown table.
     4. **EMAIL TRIGGER:**
-       - If the user explicitly asks to "Send procurement email for..." or "Confirm request for..." a list of items:
-       - You MUST include `<<<ACTION:SEND_EMAIL>>>` in your response.
-       - Respond with a clear confirmation message like "Email request sent successfully."
+       - **Step 1 (Request Initiated):** If the user asks to "Send procurement email for..." or "Confirm request for..." a list of items:
+         - Do NOT include `<<<ACTION:SEND_EMAIL>>>` yet.
+         - You MUST list the items to be requested.
+         - You MUST explicitly ask: "Do you want to send this request to the Procurement Team? Please reply 'Yes' to confirm."
+       - **Step 2 (Confirmed):** If the user replies "Yes" (or "Confirm") AND there is a pending request in the context:
+         - You MUST include `<<<ACTION:SEND_EMAIL>>>` in your response.
+         - Respond with a clear confirmation message like "Email request sent successfully."
     5. IMPORTANT: Ensure there are TWO blank lines before the table starts.
     6. The table MUST include these columns: S/NO, ITEM DESCRIPTION, CATEGORY, LEAD TIME (DAYS), REMARKS, CREATED BY.
     7. IMPORTANT: If there are more than 20 items matching the request, show only the first 20.
