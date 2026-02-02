@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import sys
 import os
 import smtplib
+import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -12,6 +13,16 @@ from email.mime.multipart import MIMEMultipart
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
 
 try:
     from backend.data import inventory_df
@@ -50,7 +61,7 @@ class ReportRequest(BaseModel):
 
 def send_email_notification(details: str):
     """
-    Sends an email notification using SMTP.
+    Sends an email notification using SMTP with detailed logging.
     """
     sender_email = os.getenv("EMAIL_SENDER")
     sender_password = os.getenv("EMAIL_PASSWORD")
@@ -58,15 +69,13 @@ def send_email_notification(details: str):
     smtp_port = int(os.getenv("EMAIL_SMTP_PORT", 587))
     receiver_email = "divyansh.m@superaip.com"
 
-    print("---------------------------------------------------------")
-    print(f"📧 Preparing to send email to: {receiver_email}")
+    logger.info("---------------------------------------------------------")
+    logger.info(f"📧 Preparing to send email to: {receiver_email}")
+    logger.info(f"🔧 SMTP Configuration: Server={smtp_server}, Port={smtp_port}")
     
     if not sender_email or not sender_password:
-        print("⚠️  Email credentials (EMAIL_SENDER, EMAIL_PASSWORD) not found in .env.")
-        print("⚠️  Mocking email send. Here is the content:")
-        print(f"SUBJECT: Procurement Request - Lead Time Generation")
-        print(f"BODY:\n{details}")
-        print("---------------------------------------------------------")
+        logger.warning("⚠️  Email credentials (EMAIL_SENDER, EMAIL_PASSWORD) not found in .env.")
+        logger.info("⚠️  Mocking email send. Content not sent.")
         return False
 
     try:
@@ -74,28 +83,40 @@ def send_email_notification(details: str):
         msg["From"] = sender_email
         msg["To"] = receiver_email
         msg["Subject"] = "Procurement Request - Lead Time Generation"
-
         msg.attach(MIMEText(details, "plain"))
 
-        print(f"🔌 Connecting to SMTP server: {smtp_server}:{smtp_port}...")
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
+        logger.info(f"🔌 Connecting to SMTP server: {smtp_server}:{smtp_port}...")
         
-        print("🔑 Logging in...")
-        server.login(sender_email, sender_password)
-        
-        print("🚀 Sending email...")
-        text = msg.as_string()
-        server.sendmail(sender_email, receiver_email, text)
-        server.quit()
+        # Context manager ensures connection is closed even on error
+        with smtplib.SMTP(smtp_server, smtp_port, timeout=30) as server:
+            server.set_debuglevel(1)  # Enable SMTP debug output to stdout
+            
+            logger.info("🔒 Starting TLS...")
+            server.starttls()
+            
+            logger.info(f"🔑 Logging in as {sender_email}...")
+            server.login(sender_email, sender_password)
+            
+            logger.info("🚀 Sending email...")
+            server.send_message(msg)
+            
+            logger.info(f"✅ Email sent successfully to {receiver_email}")
+            logger.info("---------------------------------------------------------")
+            return True
 
-        print(f"✅ Email sent successfully to {receiver_email}")
-        print("---------------------------------------------------------")
-        return True
+    except smtplib.SMTPAuthenticationError as e:
+        logger.error(f"❌ SMTP Authentication Error: {e}")
+        logger.error("👉 Check your EMAIL_SENDER and EMAIL_PASSWORD. If using Gmail, ensure you are using an App Password.")
+    except smtplib.SMTPConnectError as e:
+        logger.error(f"❌ SMTP Connection Error: {e}")
+        logger.error("👉 Check the SMTP server address and port. Ensure firewall allows outbound traffic on this port.")
+    except smtplib.SMTPException as e:
+        logger.error(f"❌ General SMTP Error: {e}")
     except Exception as e:
-        print(f"❌ Failed to send email: {e}")
-        print("---------------------------------------------------------")
-        return False
+        logger.exception(f"❌ Unexpected Error sending email: {e}")
+    
+    logger.info("---------------------------------------------------------")
+    return False
 
 @app.post("/chat")
 def chat(request: ChatRequest):
