@@ -151,9 +151,6 @@ def chat(request: ChatRequest):
          - Do NOT include `<<<ACTION:SEND_EMAIL>>>` yet.
          - You MUST list the items to be requested.
          - You MUST explicitly ask: "Do you want to send this request to the Procurement Team? Please reply 'Yes' to confirm."
-       - **Step 2 (Confirmed):** If the user replies "Yes" (or "Confirm") AND there is a pending request in the context:
-         - You MUST include `<<<ACTION:SEND_EMAIL>>>` in your response.
-         - Respond with a clear confirmation message like "Email request sent successfully."
     5. IMPORTANT: Ensure there are TWO blank lines before the table starts.
     6. The table MUST include these columns: S/NO, ITEM DESCRIPTION, CATEGORY, LEAD TIME (DAYS), REMARKS, CREATED BY.
     7. IMPORTANT: If there are more than 20 items matching the request, show only the first 20.
@@ -163,6 +160,11 @@ def chat(request: ChatRequest):
     9. **FORMATTING:** Use standard Markdown for tables (e.g., | Column 1 | Column 2 |). DO NOT use HTML tags like <TABLE>.
     10. CRITICAL: You MUST provide exactly 3 follow-up suggestions in the "suggestions" array.
     11. **NO DUPLICATION:** Do NOT repeat the table. Do NOT include text suggestions in the <<<ANSWER>>> block. Only provide suggestions in the <<<SUGGESTIONS>>> block.
+    
+    CRITICAL ACTION INSTRUCTIONS:
+    - If the user confirms a request (says "Yes", "Confirm", "Go ahead"):
+      1. You MUST include the tag `<<<ACTION:SEND_EMAIL>>>` anywhere in your response.
+      2. Respond with "Email request sent successfully."
 
     SUGGESTION LOGIC:
     - Suggestions MUST be specific, actionable queries based on the data.
@@ -190,18 +192,26 @@ def chat(request: ChatRequest):
 
     # Disable JSON mode to avoid escaping issues with complex markdown tables
     raw_result = chat_llm(prompt, json_mode=False)
+
+    # This will show you EXACTLY why it failed if it happens again
+    print("------------------------------------------------")
+    print(f"DEBUG: Raw AI Response:\n{raw_result}") 
+    print("------------------------------------------------")
     
     # Check for Action
     if "<<<ACTION:SEND_EMAIL>>>" in raw_result:
-        # We need to extract what to email. Usually the previous bot message or the current summary.
-        # For simplicity, we'll email the current answer content or a fixed message.
-        # Ideally, the LLM should provide the content to email.
-        # Let's assume the LLM summarizes what is being sent in the Answer.
-        send_email_notification(f"User confirmed request.\n\nContext:\n{history_text}\n\nUser Request: {request.message}")
-        # Remove the action tag from the result so the user doesn't see it (though parse_llm_response handles tags)
-        raw_result = raw_result.replace("<<<ACTION:SEND_EMAIL>>>", "")
+        print("DEBUG: Action tag found! Triggering email...") # <--- Add this
+        # Send the email
+        email_success = send_email_notification(f"User confirmed request.\n\nContext:\n{history_text}\n\nUser Request: {request.message}")
+        
+        # Optional: Modify response if email failed
+        if not email_success:
+             raw_result = raw_result.replace("Email request sent successfully.", "I tried to send the email, but there was a server error.")
 
-    # Parse the delimited response
+        raw_result = raw_result.replace("<<<ACTION:SEND_EMAIL>>>", "")
+    else:
+        print("DEBUG: No Action tag found.") # <--- Add this
+
     return parse_llm_response(raw_result)
 
 @app.post("/generate-report")
