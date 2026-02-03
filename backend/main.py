@@ -244,17 +244,19 @@ def generate_report(request: ReportRequest):
     {history_text}
 
     Instructions:
-    1. Analyze the ENTIRE Chat History to identify EVERY specific item or category the user has asked about in this session. Do not miss any.
-    2. Create a summary report specifically focusing on the LEAD TIME for these items.
-    3. Present the data in a Markdown table with columns: S/NO, ITEM DESCRIPTION, CATEGORY, LEAD TIME (DAYS).
-    4. **DATA EXTRACTION:** You MUST also provide the raw data for the report in JSON format wrapped in `<<<DATA>>>` tags.
+    1. Analyze the Chat History to identify EVERY specific item or category the user has asked about in this session.
+    2. **STRICT FILTERING:** Only include items that were EXPLICITLY requested or discussed by the user. Do NOT include random items from the context.
+    3. If NO specific items were found in the history, respond with: "No specific items were found in the chat history to generate a report." and return an empty JSON array `<<<DATA>>>[]<<</DATA>>>`.
+    4. Create a summary report specifically focusing on the LEAD TIME for the identified items.
+    5. Present the data in a Markdown table with columns: S/NO, ITEM DESCRIPTION, CATEGORY, LEAD TIME (DAYS).
+    6. **DATA EXTRACTION:** You MUST also provide the raw data for the report in JSON format wrapped in `<<<DATA>>>` tags.
        - The JSON should be a list of dictionaries.
-       - Example: <<<DATA>>>[{{"S/NO": "1", "ITEM": "Valve"}}]<<</DATA>>>
-    5. If no specific items were discussed, show a general summary of items with short lead times (e.g., 7 days).
-    6. IMPORTANT: Ensure there are TWO blank lines before the table starts.
-    7. **FORMATTING:** Use standard Markdown for tables (e.g., | Column 1 | Column 2 |). DO NOT use HTML tags like <TABLE>.
-    8. CRITICAL: You MUST provide exactly 3 follow-up suggestions.
-    9. **NO DUPLICATION:** Do NOT repeat the table. Do NOT include text suggestions in the <<<ANSWER>>> block. Only provide suggestions in the <<<SUGGESTIONS>>> block.
+       - The JSON data must match the rows in the Markdown table exactly.
+       - Example: <<<DATA>>>[{{"S/NO": "1", "ITEM DESCRIPTION": "Valve", "CATEGORY": "...", "LEAD TIME (DAYS)": "..."}}]<<</DATA>>>
+    7. IMPORTANT: Ensure there are TWO blank lines before the table starts.
+    8. **FORMATTING:** Use standard Markdown for tables (e.g., | Column 1 | Column 2 |). DO NOT use HTML tags like <TABLE>.
+    9. CRITICAL: You MUST provide exactly 3 follow-up suggestions.
+    10. **NO DUPLICATION:** Do NOT repeat the table. Do NOT include text suggestions in the <<<ANSWER>>> block. Only provide suggestions in the <<<SUGGESTIONS>>> block.
     
     SUGGESTION LOGIC:
     - Suggestions MUST be specific, actionable queries for the next steps.
