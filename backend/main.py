@@ -5,6 +5,10 @@ import sys
 import os
 import smtplib
 import logging
+import base64
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -61,62 +65,52 @@ class ReportRequest(BaseModel):
 
 def send_email_notification(details: str):
     """
-    Sends an email notification using SMTP with detailed logging.
+    Sends an email using the Gmail API (Port 443 - Firewall Friendly).
     """
-    sender_email = os.getenv("EMAIL_SENDER")
-    sender_password = os.getenv("EMAIL_PASSWORD")
-    smtp_server = os.getenv("EMAIL_SMTP_SERVER", "smtp.gmail.com")
-    smtp_port = int(os.getenv("EMAIL_SMTP_PORT", 587))
     receiver_email = "divyansh.m@superaip.com"
-
-    logger.info("---------------------------------------------------------")
-    logger.info(f"📧 Preparing to send email to: {receiver_email}")
-    logger.info(f"🔧 SMTP Configuration: Server={smtp_server}, Port={smtp_port}")
+    subject = "Procurement Request - Lead Time Generation"
     
-    if not sender_email or not sender_password:
-        logger.warning("⚠️  Email credentials (EMAIL_SENDER, EMAIL_PASSWORD) not found in .env.")
-        logger.info("⚠️  Mocking email send. Content not sent.")
+    logger.info("---------------------------------------------------------")
+    logger.info(f"📧 Preparing to send email via Gmail API to: {receiver_email}")
+
+    # Check if the token file exists (uploaded via Render Secret Files)
+    if not os.path.exists('token.json'):
+        logger.error("❌ 'token.json' not found. Please upload it as a Secret File in Render.")
         return False
 
     try:
-        msg = MIMEMultipart()
-        msg["From"] = sender_email
-        msg["To"] = receiver_email
-        msg["Subject"] = "Procurement Request - Lead Time Generation"
-        msg.attach(MIMEText(details, "plain"))
-
-        logger.info(f"🔌 Connecting to SMTP server: {smtp_server}:{smtp_port}...")
+        # 1. Load Credentials
+        creds = Credentials.from_authorized_user_file('token.json', ['https://www.googleapis.com/auth/gmail.send'])
         
-        # Context manager ensures connection is closed even on error
-        with smtplib.SMTP(smtp_server, smtp_port, timeout=30) as server:
-            server.set_debuglevel(1)  # Enable SMTP debug output to stdout
-            
-            logger.info("🔒 Starting TLS...")
-            server.starttls()
-            
-            logger.info(f"🔑 Logging in as {sender_email}...")
-            server.login(sender_email, sender_password)
-            
-            logger.info("🚀 Sending email...")
-            server.send_message(msg)
-            
-            logger.info(f"✅ Email sent successfully to {receiver_email}")
-            logger.info("---------------------------------------------------------")
-            return True
+        # Refresh if expired (Google handles this automatically)
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
 
-    except smtplib.SMTPAuthenticationError as e:
-        logger.error(f"❌ SMTP Authentication Error: {e}")
-        logger.error("👉 Check your EMAIL_SENDER and EMAIL_PASSWORD. If using Gmail, ensure you are using an App Password.")
-    except smtplib.SMTPConnectError as e:
-        logger.error(f"❌ SMTP Connection Error: {e}")
-        logger.error("👉 Check the SMTP server address and port. Ensure firewall allows outbound traffic on this port.")
-    except smtplib.SMTPException as e:
-        logger.error(f"❌ General SMTP Error: {e}")
+        # 2. Build the Service
+        service = build('gmail', 'v1', credentials=creds)
+
+        # 3. Create the Email Message
+        message = MIMEMultipart()
+        message['To'] = receiver_email
+        message['Subject'] = subject
+        message.attach(MIMEText(details, 'plain'))
+        
+        # Encode the message (Gmail API requires base64url format)
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        body = {'raw': raw_message}
+
+        # 4. Send
+        logger.info("🚀 Sending email via API...")
+        sent_message = service.users().messages().send(userId="me", body=body).execute()
+        
+        logger.info(f"✅ Email sent successfully! Message ID: {sent_message['id']}")
+        logger.info("---------------------------------------------------------")
+        return True
+
     except Exception as e:
-        logger.exception(f"❌ Unexpected Error sending email: {e}")
-    
-    logger.info("---------------------------------------------------------")
-    return False
+        logger.exception(f"❌ Gmail API Error: {e}")
+        logger.info("---------------------------------------------------------")
+        return False
 
 @app.post("/chat")
 def chat(request: ChatRequest):
