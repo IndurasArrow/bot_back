@@ -164,7 +164,16 @@ def chat(request: ChatRequest):
     CRITICAL ACTION INSTRUCTIONS:
     - If the user confirms a request (says "Yes", "Confirm", "Go ahead"):
       1. You MUST include the tag `<<<ACTION:SEND_EMAIL>>>` anywhere in your response.
-      2. Respond with "Email request sent successfully."
+      2. Respond with EXACTLY: "Email request sent successfully."
+    
+    ----- EXAMPLE INTERACTION -----
+    User: Yes, please confirm.
+    Assistant:
+    <<<ANSWER>>>
+    <<<ACTION:SEND_EMAIL>>>
+    Email request sent successfully.
+    <<</ANSWER>>>
+    -------------------------------
 
     SUGGESTION LOGIC:
     - Suggestions MUST be specific, actionable queries based on the data.
@@ -198,19 +207,24 @@ def chat(request: ChatRequest):
     print(f"DEBUG: Raw AI Response:\n{raw_result}") 
     print("------------------------------------------------")
     
-    # Check for Action
-    if "<<<ACTION:SEND_EMAIL>>>" in raw_result:
-        print("DEBUG: Action tag found! Triggering email...") # <--- Add this
+    # [CHANGE 2] THE ROBUST TRIGGER CHECK
+    # We now check for the Tag OR the specific Phrase the model loves to use.
+    trigger_phrase = "Email request sent successfully"
+    
+    if "<<<ACTION:SEND_EMAIL>>>" in raw_result or trigger_phrase in raw_result:
+        print(f"DEBUG: Trigger found! (Tag or Phrase detected)")
+        
         # Send the email
         email_success = send_email_notification(f"User confirmed request.\n\nContext:\n{history_text}\n\nUser Request: {request.message}")
         
-        # Optional: Modify response if email failed
-        if not email_success:
-             raw_result = raw_result.replace("Email request sent successfully.", "I tried to send the email, but there was a server error.")
-
+        # Cleanup the tag if it exists so the user doesn't see it
         raw_result = raw_result.replace("<<<ACTION:SEND_EMAIL>>>", "")
+        
+        # Optional: If email failed, let the user know by overwriting the success message
+        if not email_success:
+             raw_result = raw_result.replace(trigger_phrase, "I tried to send the email, but there was a server error.")
     else:
-        print("DEBUG: No Action tag found.") # <--- Add this
+        print("DEBUG: No Action tag or Trigger phrase found.")
 
     return parse_llm_response(raw_result)
 
