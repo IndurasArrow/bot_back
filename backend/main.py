@@ -67,7 +67,10 @@ def send_email_notification(details: str):
     """
     Sends an email using the Gmail API (Port 443 - Firewall Friendly).
     """
-    receiver_email = "rimmi@igtpl.co.in"
+    receiver_email = [
+        "rimmi@igtpl.co.in",
+        "siddharth.laskar@pvrinox.com"
+    ]
     subject = "Procurement Request - Lead Time Generation"
     
     logger.info("---------------------------------------------------------")
@@ -90,8 +93,8 @@ def send_email_notification(details: str):
         service = build('gmail', 'v1', credentials=creds)
 
         # 3. Create the Email Message
-        message = MIMEMultipart()
-        message['To'] = receiver_email
+        message = MIMEText(details)
+        message['To'] =", ".join(receiver_email)
         message['Subject'] = subject
         message.attach(MIMEText(details, 'plain'))
         
