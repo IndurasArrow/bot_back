@@ -76,14 +76,18 @@ def send_email_notification(details: str):
     logger.info("---------------------------------------------------------")
     logger.info(f"📧 Preparing to send email via Gmail API to: {receiver_email}")
 
+    # Determine absolute path for token.json to avoid CWD issues
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    token_path = os.path.join(base_dir, 'token.json')
+
     # Check if the token file exists (uploaded via Render Secret Files)
-    if not os.path.exists('token.json'):
-        logger.error("❌ 'token.json' not found. Please upload it as a Secret File in Render.")
+    if not os.path.exists(token_path):
+        logger.error(f"❌ 'token.json' not found at {token_path}. Please upload it as a Secret File in Render.")
         return False
 
     try:
         # 1. Load Credentials
-        creds = Credentials.from_authorized_user_file('token.json', ['https://www.googleapis.com/auth/gmail.send'])
+        creds = Credentials.from_authorized_user_file(token_path, ['https://www.googleapis.com/auth/gmail.send'])
         
         # Refresh if expired (Google handles this automatically)
         if creds.expired and creds.refresh_token:
@@ -93,7 +97,7 @@ def send_email_notification(details: str):
         service = build('gmail', 'v1', credentials=creds)
 
         # 3. Create the Email Message
-        message = MIMEText(details)
+        message = MIMEMultipart()
         message['To'] =", ".join(receiver_email)
         message['Subject'] = subject
         message.attach(MIMEText(details, 'plain'))
