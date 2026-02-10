@@ -43,7 +43,7 @@ import json
 import re
 
 app = FastAPI(
-    title="PVR Chat Assistant",
+    title="AI Chat Assistant",
     description="Query your procurement data",
     version="1.0.0",
 )
